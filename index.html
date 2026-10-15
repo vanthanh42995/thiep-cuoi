@@ -295,6 +295,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .qr p { margin: 0; font-family: var(--f-sans); font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
 .qr .stk { font-size: 15px; font-weight: 600; color: var(--ink); letter-spacing: .04em; }
 .copy { margin-top: 8px; padding: 6px 12px; font-size: 12px; }
+.ck { margin-top: 14px; padding: 12px 14px; border: 1px dashed var(--line); border-radius: 8px; background: #fff; display: grid; gap: 4px; justify-items: center; }
+.ck span { font-family: var(--f-sans); font-size: 12px; color: var(--muted); }
+.ck .stk { font-family: var(--f-sans); font-size: 14px; color: var(--wine); overflow-wrap: anywhere; }
 
 /* Cảm ơn */
 .thanks { position: relative; margin-top: 30px; aspect-ratio: 3 / 4.2; overflow: hidden; }
@@ -370,7 +373,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* ===================== CẤU HÌNH ===================== */
 // Dán URL Web App của Apps Script vào đây (dạng https://script.google.com/macros/s/.../exec).
 // Để trống = chạy bản xem trước bằng dữ liệu mẫu.
-const API_URL = 'https://script.google.com/macros/s/AKfycbzvbu4G9gRXgmM3NWIgl6ctBJAk9hgLBvrXtPd7sJufZ2Av3kEeKRwxWjANZANc-DaSnA/exec';
+const API_URL = '';
 const MUSIC_DEFAULT = 'music.mp3';
 
 /* ===================== DỮ LIỆU MẪU ===================== */
@@ -390,6 +393,7 @@ const DEMO = {
     cau_noi_1: 'Hạnh phúc là được nắm tay nhau đi qua những ngày rất đỗi bình thường.',
     cau_noi_2: 'Cảm ơn vì đã đến, đã ở lại và đã chọn cùng nhau viết tiếp câu chuyện này.',
     tieu_de_album: 'Our Story',
+    noi_dung_ck: '{khach} chuc mung 2 {xung} {ma}',
     cau_noi_3: 'Mỗi khoảnh khắc bên nhau đều là một kỷ niệm đáng giữ.'
   },
   photos: {},
@@ -508,13 +512,19 @@ function render(d) {
     { who: 'Cô dâu', name: c.co_dau_ho_ten, b: c.mc_cd_ngan_hang, n: c.mc_cd_stk, h: c.mc_cd_chu_tk, qr: P.qr_co_dau }
   ].filter(x => x.qr || (x.b && x.n));
   if (s === 'ng') bank.reverse();
+
+  // Nội dung chuyển khoản riêng cho từng khách (bỏ dấu, tối đa 50 ký tự, luôn giữ mã khách ở cuối)
+  const ck = transferNote(c.noi_dung_ck, g, guestName, groom, bride);
+
   const qrHtml = bank.map((x, i) => {
-    const src = x.qr || `https://img.vietqr.io/image/${encodeURIComponent(x.b)}-${encodeURIComponent(x.n)}-compact2.png?accountName=${encodeURIComponent(x.h || '')}&addInfo=${encodeURIComponent('Mung cuoi ' + groom + ' ' + bride)}`;
+    const src = x.qr || `https://img.vietqr.io/image/${encodeURIComponent(x.b)}-${encodeURIComponent(x.n)}-compact2.png?accountName=${encodeURIComponent(x.h || '')}&addInfo=${encodeURIComponent(ck)}`;
     return `<div class="qr"><h4>Mừng cưới ${esc(x.who)}</h4>
       <img src="${esc(src)}" alt="Mã QR chuyển khoản ${esc(x.who)}" loading="lazy" referrerpolicy="no-referrer">
       ${x.n ? `<p>${esc(x.b || '')}</p><p class="stk" id="stk${i}">${esc(x.n)}</p><p>${esc(x.h || '')}</p>
       <button class="btn-line copy" type="button" data-copy="${esc(x.n)}">Sao chép số tài khoản</button>` : ''}</div>`;
   }).join('');
+  const ckHtml = `<div class="ck"><span>Nội dung chuyển khoản</span><b class="stk">${esc(ck)}</b>
+    <button class="btn-line copy" type="button" data-copy="${esc(ck)}" data-label="Sao chép nội dung">Sao chép nội dung</button></div>`;
 
   const wishesHtml = (d.wishes || []).map(w => `<div class="wish"><b>${esc(w.ten)}</b><p>${esc(w.loi)}</p></div>`).join('');
 
@@ -637,7 +647,10 @@ function render(d) {
     <h2 class="script-title rv">Hộp Mừng Cưới</h2>
     <p class="gift-text rv">Sự hiện diện của ${esc(guestName === 'Quý khách' ? 'quý khách' : guestName)} là món quà ý nghĩa nhất. Nếu muốn gửi lời chúc mừng từ xa, xin mời dùng mã bên dưới.</p>
     <button class="btn-line" type="button" id="giftBtn" aria-expanded="false">Mở hộp mừng cưới</button>
-    <div class="qr-grid" id="giftBox" hidden>${qrHtml || '<p class="empty">Thông tin tài khoản sẽ cập nhật từ Google Sheet.</p>'}</div>
+    <div id="giftBox" hidden>
+      <div class="qr-grid">${qrHtml || '<p class="empty">Mã QR hiện khi đã nhập ngân hàng và số tài khoản trong Google Sheet.</p>'}</div>
+      ${ckHtml}
+    </div>
   </section>` : ''}
 
   <figure class="thanks rv" data-r="zoom">
@@ -651,6 +664,22 @@ function render(d) {
   startCountdown(dt, ev.gio);
   bindForm();
   bindGift();
+}
+
+function noDau(s) {
+  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D');
+}
+function transferNote(tpl, g, guestName, groom, bride) {
+  const clean = s => noDau(s).replace(/[^A-Za-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!g) return clean('Mung cuoi ' + groom + ' ' + bride).slice(0, 50);
+  const xung = String(g.xungHo || 'ban').replace(/^(chúng|bọn)\s+/i, '');
+  let t = clean(String(tpl || '{khach} chuc mung 2 {xung} {ma}')
+    .replace(/\{khach\}/gi, guestName).replace(/\{xung\}/gi, xung).replace(/\{ma\}/gi, g.ma));
+  if (t.length > 50) {
+    const tail = ' ' + g.ma;
+    t = t.endsWith(tail) ? t.slice(0, t.length - tail.length).slice(0, 50 - tail.length).trim() + tail : t.slice(0, 50).trim();
+  }
+  return t;
 }
 
 function calendar(dt) {
@@ -745,7 +774,8 @@ function bindGift() {
   });
   document.querySelectorAll('[data-copy]').forEach(btn => btn.addEventListener('click', () => {
     const v = btn.dataset.copy;
-    const done = () => { btn.textContent = 'Đã sao chép'; setTimeout(() => btn.textContent = 'Sao chép số tài khoản', 1800); };
+    const label = btn.dataset.label || 'Sao chép số tài khoản';
+    const done = () => { btn.textContent = 'Đã sao chép'; setTimeout(() => btn.textContent = label, 1800); };
     try {
       navigator.clipboard.writeText(v).then(done, () => selectText(btn));
     } catch (e) { selectText(btn); }
